@@ -1,7 +1,7 @@
 ---
 # Ollama with Open-WebUI installation for SURF Research Cloud
-# Self-contained playbook - no external roles needed
-# Run with: ansible-playbook ollama-webui.yml
+# Simplified version using docker commands instead of community.docker collection
+# Run with: ansible-playbook ollama-webui-simple.yml
 
 - name: Install Ollama with Open-WebUI
   hosts: localhost
@@ -33,7 +33,6 @@
     
     # Directories
     compose_dir: "/opt/ollama-stack"
-    data_dir: "/opt/ollama-stack/data"
 
   tasks:
     # === DOCKER INSTALLATION ===
@@ -181,16 +180,6 @@
         path: "{{ compose_dir }}"
         state: directory
         mode: '0755'
-        owner: "{{ ansible_user }}"
-        group: "{{ ansible_user }}"
-
-    - name: Create data directory
-      file:
-        path: "{{ data_dir }}"
-        state: directory
-        mode: '0755'
-        owner: "{{ ansible_user }}"
-        group: "{{ ansible_user }}"
 
     - name: Create Docker Compose file
       copy:
@@ -251,13 +240,11 @@
               driver: bridge
         dest: "{{ compose_dir }}/docker-compose.yml"
         mode: '0644'
-        owner: "{{ ansible_user }}"
-        group: "{{ ansible_user }}"
 
-    - name: Start Open-WebUI with Docker Compose
-      community.docker.docker_compose_v2:
-        project_src: "{{ compose_dir }}"
-        state: present
+    - name: Start Open-WebUI with Docker Compose (using docker compose command)
+      shell: |
+        cd {{ compose_dir }}
+        docker compose up -d
       become_user: "{{ ansible_user }}"
 
     - name: Wait for Open-WebUI to be ready
