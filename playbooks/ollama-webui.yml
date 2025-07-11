@@ -1,0 +1,83 @@
+---
+# Ollama with Open-WebUI installation for SURF Research Cloud
+# Run with: ansible-playbook playbooks/ollama-webui.yml
+
+- name: Install Ollama with Open-WebUI
+  hosts: localhost
+  become: yes
+  connection: local
+  gather_facts: yes
+
+  vars:
+    # Service ports
+    ollama_port: 11434
+    webui_port: 3000
+    n8n_port: 5678
+    
+    # Ollama configuration
+    ollama_host: "0.0.0.0"
+    ollama_models:
+      - "gemma2:2b"      # Small, fast model (~1.6GB)
+      - "llama3.1:8b"    # Balanced model (~4.7GB)
+    
+    # Open-WebUI configuration
+    webui_auth: false  # Disabled for ease of use on shared workspaces
+    webui_image: "ghcr.io/open-webui/open-webui:cuda"
+    webui_volume: "open-webui-data"
+    
+    # N8N configuration (optional)
+    install_n8n: false  # Set to true to install N8N
+    n8n_image: "docker.n8n.io/n8nio/n8n"
+    n8n_volume: "n8n_data"
+    
+    # Directories
+    compose_dir: "/opt/ollama-stack"
+    data_dir: "/opt/ollama-stack/data"
+    
+    # Docker users
+    docker_users:
+      - "{{ ansible_user }}"
+
+  pre_tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 600
+
+    - name: Install base packages
+      apt:
+        name:
+          - curl
+          - ca-certificates
+          - gnupg
+          - lsb-release
+          - software-properties-common
+        state: present
+
+  roles:
+    - role: docker
+      tags: docker
+    - role: nvidia-container-toolkit
+      tags: nvidia
+    - role: ollama
+      tags: ollama
+    - role: webui
+      tags: webui
+    - role: n8n
+      tags: n8n
+      when: install_n8n | default(false)
+
+  post_tasks:
+    - name: Display service information
+      debug:
+        msg:
+          - "🎉 Installation completed successfully!"
+          - ""
+          - "📍 Access your services:"
+          - "  • Open-WebUI: http://{{ ansible_default_ipv4.address }}:{{ webui_port }}"
+          - "  • Ollama API: http://{{ ansible_default_ipv4.address }}:{{ ollama_port }}"
+          - "{% if install_n8n %}  • N8N: http://{{ ansible_default_ipv4.address }}:{{ n8n_port }}{% endif %}"
+          - ""
+          - "🤖 Default models installed: {{ ollama_models | join(', ') }}"
+          - "📚 Install more models: ollama pull <model-name>"
+          - "💡 Available models: https://ollama.com/library"

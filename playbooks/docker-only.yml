@@ -1,0 +1,32 @@
+---
+# Simple Docker installation for SURF Research Cloud
+# Run with: ansible-playbook playbooks/docker-only.yml
+
+- name: Install Docker
+  hosts: localhost
+  become: yes
+  connection: local
+  gather_facts: yes
+
+  vars:
+    docker_users:
+      - "{{ ansible_user }}"
+
+  pre_tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 600
+
+  roles:
+    - role: docker
+      tags: docker
+
+  post_tasks:
+    - name: Display completion message
+      debug:
+        msg:
+          - "✅ Docker installation completed!"
+          - "🐳 Test with: docker run hello-world"
+          - "📋 Your user has been added to the docker group"
+          - "🔄 You may need to log out and back in for group changes to take effect"

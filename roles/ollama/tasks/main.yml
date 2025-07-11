@@ -1,0 +1,47 @@
+---
+- name: Install Ollama
+  shell: curl -fsSL https://ollama.com/install.sh | sh
+  args:
+    creates: /usr/local/bin/ollama
+
+- name: Create Ollama systemd override directory
+  file:
+    path: /etc/systemd/system/ollama.service.d
+    state: directory
+    mode: '0755'
+
+- name: Configure Ollama environment for Docker communication
+  copy:
+    content: |
+      [Service]
+      Environment="OLLAMA_HOST={{ ollama_host }}:{{ ollama_port }}"
+    dest: /etc/systemd/system/ollama.service.d/override.conf
+    mode: '0644'
+  notify:
+    - reload systemd
+    - restart ollama
+
+- name: Reload systemd daemon
+  systemd:
+    daemon_reload: yes
+
+- name: Start and enable Ollama service
+  systemd:
+    name: ollama
+    state: started
+    enabled: yes
+
+- name: Wait for Ollama to be ready
+  wait_for:
+    port: "{{ ollama_port }}"
+    host: "{{ ollama_host }}"
+    delay: 5
+    timeout: 60
+
+- name: Install default models
+  shell: "ollama pull {{ item }}"
+  loop: "{{ ollama_models }}"
+  become_user: "{{ ansible_user }}"
+  register: model_install
+  changed_when: "'already exists' not in model_install.stderr"
+  failed_when: model_install.rc != 0 and 'already exists' not in model_install.stderr

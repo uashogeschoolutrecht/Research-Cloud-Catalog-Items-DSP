@@ -1,0 +1,92 @@
+---
+- name: Create compose directory
+  file:
+    path: "{{ compose_dir }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+
+- name: Create data directory
+  file:
+    path: "{{ data_dir }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+
+- name: Create Docker Compose file
+  copy:
+    content: |
+      version: '3.8'
+
+      services:
+        open-webui:
+          image: {{ webui_image }}
+          container_name: open-webui
+          ports:
+            - "{{ webui_port }}:8080"
+          volumes:
+            - {{ webui_volume }}:/app/backend/data
+          environment:
+            - OLLAMA_BASE_URL=http://host.docker.internal:{{ ollama_port }}
+      {% if not webui_auth %}
+            - WEBUI_AUTH=False
+      {% endif %}
+          extra_hosts:
+            - "host.docker.internal:host-gateway"
+          deploy:
+            resources:
+              reservations:
+                devices:
+                  - driver: nvidia
+                    count: all
+                    capabilities: [gpu]
+          restart: unless-stopped
+          networks:
+            - ollama-network
+
+      {% if install_n8n %}
+        n8n:
+          image: {{ n8n_image }}
+          container_name: n8n
+          ports:
+            - "{{ n8n_port }}:5678"
+          volumes:
+            - {{ n8n_volume }}:/home/node/.n8n
+          extra_hosts:
+            - "host.docker.internal:host-gateway"
+          restart: unless-stopped
+          networks:
+            - ollama-network
+      {% endif %}
+
+      volumes:
+        {{ webui_volume }}:
+          driver: local
+      {% if install_n8n %}
+        {{ n8n_volume }}:
+          driver: local
+      {% endif %}
+
+      networks:
+        ollama-network:
+          driver: bridge
+    dest: "{{ compose_dir }}/docker-compose.yml"
+    mode: '0644'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  notify: restart webui services
+
+- name: Start Open-WebUI with Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ compose_dir }}"
+    state: present
+  become_user: "{{ ansible_user }}"
+
+- name: Wait for Open-WebUI to be ready
+  wait_for:
+    port: "{{ webui_port }}"
+    host: "0.0.0.0"
+    delay: 10
+    timeout: 120

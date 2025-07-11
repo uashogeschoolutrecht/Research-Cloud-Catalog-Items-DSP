@@ -1,0 +1,35 @@
+---
+- name: Generate N8N encryption key
+  shell: head /dev/urandom | tr -dc A-Za-z0-9 | head -c 32
+  register: n8n_encryption_key
+  changed_when: false
+
+- name: Create N8N configuration
+  copy:
+    content: |
+      {
+        "credentials": {
+          "ollamaApi": {
+            "Ollama (Auto-Configured)": {
+              "id": "ollama-auto-cred",
+              "name": "Ollama (Auto-Configured)",
+              "type": "ollamaApi",
+              "data": {
+                "baseUrl": "http://host.docker.internal:{{ ollama_port }}"
+              }
+            }
+          }
+        }
+      }
+    dest: "{{ compose_dir }}/n8n-config.json"
+    mode: '0644'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+
+- name: Set N8N encryption key fact
+  set_fact:
+    n8n_encryption_key_value: "{{ n8n_encryption_key.stdout }}"
+
+- name: Debug message about N8N
+  debug:
+    msg: "N8N will be included in the Docker Compose stack with Ollama pre-configured"
